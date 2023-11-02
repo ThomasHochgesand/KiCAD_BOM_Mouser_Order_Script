@@ -1,8 +1,13 @@
-import os, re, requests, json, uuid
+import os, requests, json, uuid
 import glob, csv
 import pandas as pd
 
 BASE_URL = "https://api.mouser.com/api/v1.0"
+
+
+MOUSER_COLUMN_NAME = "MFN"                              # how you named your column
+DELIMITER = ","                                         # the delimiter of your .csv-file
+ENVIRONMENT_VARIABLE_API_KEY_NAME = "MOUSER_API_KEY"    # name of your environment variable (if you need another name for some reason on your system)
 
 ''' mouser API request skeleton '''
 class MouserAPIRequest:
@@ -28,15 +33,10 @@ class MouserAPIRequest:
         self.body = body
 
         try:
-            self.api_key = os.environ.get("MOUSER_API_KEY", '')
-            if self.api_key:
-                self.url = self.api_url + '?apiKey=' + self.api_key
-            else:
-                print("mouser api key not found!")
-                return None
-        except:
-            print("\"MOUSER_API_KEY\" environment variable not found!")
-            return None
+            self.api_key = os.environ[ENVIRONMENT_VARIABLE_API_KEY_NAME]
+            self.url = f"{self.api_url}?apiKey={self.api_key}"
+        except KeyError:
+            raise ValueError("\"MOUSER_API_KEY\" environment variable not found! \n\n**Make sure to add your MOUSER_API_KEY to your environment variables!**")
 
         if operation not in self.operations:
             print(f'[{self.name}]\tInvalid Operation')
@@ -56,7 +56,6 @@ class MouserAPIRequest:
         return response.text
 
     def run(self):
-
         print(f'{self.method}, {self.body}')
         if self.method == 'GET':
             self.response = self.get(self.url)
@@ -102,7 +101,7 @@ class MouserOrderRequest(MouserAPIRequest):
 class BOMHandler:
 
     BOM_files = [] # all found bom files
-    target_headers = ["MFN", "Qty", "Reference(s)"] # target headers
+    target_headers = [MOUSER_COLUMN_NAME, "Qty", "Reference(s)"] # target headers
     data_array = []
 
     def __init__(self, dir_path="", target_headers=target_headers):
@@ -148,7 +147,7 @@ class BOMHandler:
         header_row_index = None
 
         with open(bom_file, 'r') as f:
-            csv_reader = csv.reader(f)
+            csv_reader = csv.reader(f, delimiter=DELIMITER)
             for idx, row in enumerate(csv_reader):
                 if all(header in row for header in target_headers):
                     header_row_index = idx # find row with target headers
@@ -168,11 +167,11 @@ class BOMHandler:
 
 class MouserOrderClient:
     # specify the field name you used to store all manifacturer names, at the moment ONLY mouser part numbers are working
-    search_strings = ["MFN"]
+    search_strings = [MOUSER_COLUMN_NAME]
     # specify unwanted strings like "DNF" to be removed from the parts list
     # @note "DNF" ect. should NOT be specified as part number, please consider removing it, rather than specifying it here.
     # this is just a precaution to be able to generate a BOM, without modifying the KiCAD project itself.
-    banned_strings = ["DNF"]    
+    banned_strings = ["DNF", "None"]    
 
     def __init__(self):
         pass
