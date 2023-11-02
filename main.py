@@ -1,13 +1,18 @@
-import os, requests, json, uuid
+import os, requests, json, uuid, time
 import glob, csv
 import pandas as pd
 
 BASE_URL = "https://api.mouser.com/api/v1.0"
 
 
-MOUSER_COLUMN_NAME = "MFN"                              # how you named your column
-DELIMITER = ","                                         # the delimiter of your .csv-file
+''' USER VARIABLES - CHANGE VALUES HERE '''
 ENVIRONMENT_VARIABLE_API_KEY_NAME = "MOUSER_API_KEY"    # name of your environment variable (if you need another name for some reason on your system)
+
+CSV_MOUSER_COLUMN_NAME = "MFN"                          # how you named your column
+CSV_DELIMITER = ","                                     # the delimiter of your .csv-file
+                                    
+API_TIMEOUT_MAX_RETRIES = 10                            # max retries if api decides to return errors -> possibly due to my dataprocessing?
+API_TIMEOUT_SLEEP_S = 2                                 # wait time between retries in seconds
 
 ''' mouser API request skeleton '''
 class MouserAPIRequest:
@@ -62,21 +67,20 @@ class MouserAPIRequest:
         elif self.method == 'POST':
             self.response = self.post(self.url, self.body)
 
-        print(f'\nresonse: {self.response}\n\r')
-
-        return True if self.response else False
+        self.print_response() # print response
+        return len(json.loads(self.response)["Errors"]) == 0 # if errors in response are empty, everything is fine
 
     def get_response(self):
         if self.response is not None:
             try:
-                return json.loads(self.response.text)
+                return json.loads(self.response)
             except json.decoder.JSONDecodeError:
-                return self.response.text
-        
+                return self.response
         return {}
 
     def print_response(self):
         print(json.dumps(self.get_response(), indent=4, sort_keys=True))
+
 ''' api request class implementations '''
 class MouserCartRequest(MouserAPIRequest):
     name = 'Cart'
@@ -101,7 +105,7 @@ class MouserOrderRequest(MouserAPIRequest):
 class BOMHandler:
 
     BOM_files = [] # all found bom files
-    target_headers = [MOUSER_COLUMN_NAME, "Qty", "Reference(s)"] # target headers
+    target_headers = [CSV_MOUSER_COLUMN_NAME, "Qty", "Reference(s)"] # target headers
     data_array = []
 
     def __init__(self, dir_path="", target_headers=target_headers):
@@ -147,7 +151,7 @@ class BOMHandler:
         header_row_index = None
 
         with open(bom_file, 'r') as f:
-            csv_reader = csv.reader(f, delimiter=DELIMITER)
+            csv_reader = csv.reader(f, delimiter=CSV_DELIMITER)
             for idx, row in enumerate(csv_reader):
                 if all(header in row for header in target_headers):
                     header_row_index = idx # find row with target headers
@@ -167,7 +171,7 @@ class BOMHandler:
 
 class MouserOrderClient:
     # specify the field name you used to store all manifacturer names, at the moment ONLY mouser part numbers are working
-    search_strings = [MOUSER_COLUMN_NAME]
+    search_strings = [CSV_MOUSER_COLUMN_NAME]
     # specify unwanted strings like "DNF" to be removed from the parts list
     # @note "DNF" ect. should NOT be specified as part number, please consider removing it, rather than specifying it here.
     # this is just a precaution to be able to generate a BOM, without modifying the KiCAD project itself.
@@ -178,8 +182,9 @@ class MouserOrderClient:
 
     def process_request(self, request_type, operation, body={}):
         if request_type == "cart":
-            request = MouserCartRequest(operation, body).run()
-    
+            return MouserCartRequest(operation, body).run()
+
+
     def order_parts_from_data_array(self, data_array):
         parts_json = [] # json body buffer
 
@@ -193,17 +198,24 @@ class MouserOrderClient:
 
         cart_uuid = uuid.uuid4()
         body = f"{{'CartKey': {cart_uuid}, 'CartItems': {parts_json}}}"  
-        self.process_request('cart', 'insertitem', body=body)
+        return self.process_request('cart', 'insertitem', body=body)
 
 def main():
-    client = MouserOrderClient()
-    bom_handler = BOMHandler()
+    success = False
+    count = 0
 
-    bom_handler.get_bom_files()
-    bom_handler.process_bom_file(bom_handler.BOM_files[0])
+    while count < API_TIMEOUT_MAX_RETRIES and not success:
+        client = MouserOrderClient()
+        bom_handler = BOMHandler()
+        bom_handler.get_bom_files()
+        bom_handler.process_bom_file(bom_handler.BOM_files[0])
+        success = client.order_parts_from_data_array(bom_handler.data_array)
+        count+=1
+        if not success:
+            time.sleep(API_TIMEOUT_SLEEP_S)
 
-    client.order_parts_from_data_array(bom_handler.data_array)
-
+    print(f"tries:{count} - success: {success}")
+             
 if __name__ == "__main__":
     main()
 
