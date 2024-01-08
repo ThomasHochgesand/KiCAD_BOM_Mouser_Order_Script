@@ -8,7 +8,7 @@ BASE_URL = "https://api.mouser.com/api/v1.0"
 ''' USER VARIABLES - CHANGE VALUES HERE '''
 ENVIRONMENT_VARIABLE_API_KEY_NAME = "MOUSER_API_KEY"    # name of your environment variable (if you need another name for some reason on your system)
 
-CSV_MOUSER_COLUMN_NAME = "Mouser"                       # how you named your column
+CSV_MOUSER_COLUMN_NAME = "MFN"                       # how you named your column
 CSV_DELIMITER = ","                                     # the delimiter of your .csv-file
                                     
 API_TIMEOUT_MAX_RETRIES = 10                            # max retries if api decides to return errors -> possibly due to my dataprocessing?
@@ -163,10 +163,12 @@ class BOMHandler:
                 self.data_array[header].extend(df[header].tolist()) # use extend to not get double lists
 
             # note that the CustomerPartNumber given by Reference(s) must be a string and not exceed 22 characters
-            for idx, reference in enumerate(self.data_array[target_headers[2]]):
-                assert len(reference)<21, f'(index:{idx}, reference:\"{reference}\") - length of part number must be <= 21 characters! (is {len(reference)})'
+            for idx, reference in enumerate(self.data_array[target_headers[2]]):  
+                temp = self.summerize_sorted_items(str(reference).split(", "))[:21]       
+                if(len(temp)>=21):
+                    print(f'{idx}, \"{temp}\" exceeds maximum of 21 characters -> CustomerPartNumber will be cut off at 21th character!') 
+                self.data_array[target_headers[2]][idx] = self.summerize_sorted_items(str(reference).split(", "))[:21]
                 
-                self.data_array[target_headers[2]][idx] = self.summerize_sorted_items(str(reference).split(", "))
 
             # print(self.data_array)
             return self.data_array
