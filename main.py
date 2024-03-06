@@ -105,7 +105,7 @@ class MouserOrderRequest(MouserAPIRequest):
 class BOMHandler:
 
     BOM_files = [] # all found bom files
-    target_headers = [CSV_MOUSER_COLUMN_NAME, "Qty", "Reference(s)"] # target headers
+    target_headers = [CSV_MOUSER_COLUMN_NAME, "Qty", "Reference"] # target headers
     data_array = []
 
     def __init__(self, dir_path="", target_headers=target_headers):
@@ -219,7 +219,7 @@ def main():
             time.sleep(API_TIMEOUT_SLEEP_S)
 
     print(f"tries:{count} - success: {success}")
-             
+    
 if __name__ == "__main__":
     main()
 
