@@ -17,3 +17,15 @@ Pretty self explainory, huh? The script looks in the local directory for any bom
 2. Install requirements
 3. Pay attention to PREREQUISITES section (<- IMPORTANT)
 4. Run main.py
+
+# STEP BY STEP For venv
+1. Clone the repo
+2. create virtual environment
+3. activate virtual environment
+4. export your mouser key env. variable like:
+```bash
+export MOUSER_API_KEY=****-****-****-****
+```
+5. change CSV_MOUSER_COLUMN_NAME accordingly
+6. move the Bom .csv file into this project
+7. Run main.py
